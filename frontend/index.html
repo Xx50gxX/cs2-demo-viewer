@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS2 Demo Viewer — 2D 小地图回放</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ── Top Bar ──────────────────────────────────────────────────── -->
+<header id="topbar">
+  <h1>CS2 Demo Viewer</h1>
+  <div id="demo-info">
+    <span id="info-filename">未加载 Demo</span>
+    <span class="sep">|</span>
+    <span id="info-map">—</span>
+    <span class="sep">|</span>
+    <span id="info-round">回合 —/—</span>
+    <span class="sep">|</span>
+    <span id="info-tick">Tick —/—</span>
+  </div>
+  <div id="topbar-actions">
+    <label class="btn-primary" for="file-input">📂 加载 Demo</label>
+    <input type="file" id="file-input" accept=".dem" hidden>
+    <span id="load-status"></span>
+  </div>
+</header>
+
+<!-- ── Main Content ─────────────────────────────────────────────── -->
+<main id="main-container">
+
+  <!-- Canvas area -->
+  <section id="map-area">
+    <div id="map-wrapper">
+      <canvas id="minimap-canvas"></canvas>
+      <div id="map-overlay">
+        <div id="tooltip" class="hidden"></div>
+        <div id="legend">
+          <div class="legend-title">图例</div>
+          <div class="legend-item"><span class="dot ct"></span>CT</div>
+          <div class="legend-item"><span class="dot t"></span>T</div>
+          <div class="legend-item"><span class="lg-icon">⬤</span> 💨 烟雾</div>
+          <div class="legend-item"><span class="lg-icon">✱</span> 💡 闪光</div>
+          <div class="legend-item"><span class="lg-icon">✚</span> 💣 手雷</div>
+          <div class="legend-item"><span class="lg-icon">⬤</span> 🔥 燃烧</div>
+          <div class="legend-item"><span class="kill-mark"></span> 💀 击杀</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <!-- Round List -->
+    <div id="round-panel" class="panel">
+      <h3>📋 回合列表</h3>
+      <div id="round-list"></div>
+    </div>
+
+    <!-- Event Log -->
+    <div id="event-panel" class="panel">
+      <h3>📜 事件日志</h3>
+      <div id="event-filter">
+        <label><input type="checkbox" class="evt-filter" data-type="kill" checked> 击杀</label>
+        <label><input type="checkbox" class="evt-filter" data-type="grenade" checked> 道具</label>
+      </div>
+      <div id="event-list"></div>
+    </div>
+
+    <!-- Player Info -->
+    <div id="player-panel" class="panel">
+      <h3>👤 玩家</h3>
+      <div id="player-list"></div>
+    </div>
+  </aside>
+
+</main>
+
+<!-- ── Bottom Controls ──────────────────────────────────────────── -->
+<footer id="controls-bar">
+  <div id="playback-controls">
+    <button id="btn-prev-round" title="上一回合">⏮</button>
+    <button id="btn-step-back" title="后退 64 ticks">◀◀</button>
+    <button id="btn-play" title="播放/暂停">▶</button>
+    <button id="btn-step-fwd" title="前进 64 ticks">▶▶</button>
+    <button id="btn-next-round" title="下一回合">⏭</button>
+    <div id="speed-control">
+      <label>速度:</label>
+      <select id="speed-select">
+        <option value="0.25">1/4x</option>
+        <option value="0.5">1/2x</option>
+        <option value="1" selected>1x (实时)</option>
+        <option value="2">2x</option>
+        <option value="4">4x</option>
+        <option value="8">8x</option>
+      </select>
+    </div>
+    <div id="trail-control">
+      <label>轨迹长度:</label>
+      <select id="trail-select">
+        <option value="64">短 (1s)</option>
+        <option value="128">中 (2s)</option>
+        <option value="256" selected>长 (4s)</option>
+        <option value="512">很长 (8s)</option>
+      </select>
+    </div>
+  </div>
+  <div id="timeline-container">
+    <canvas id="timeline-canvas"></canvas>
+    <input type="range" id="timeline-slider" min="0" max="100" value="0" step="1">
+  </div>
+  <div id="tick-label">Tick 0</div>
+</footer>
+
+<!-- ── Scripts ──────────────────────────────────────────────────── -->
+<script src="js/minimap.js"></script>
+<script src="js/timeline.js"></script>
+<script src="js/controls.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>

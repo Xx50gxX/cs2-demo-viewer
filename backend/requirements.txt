@@ -1,0 +1,6 @@
+awpy>=2.0.0
+fastapi>=0.100.0
+uvicorn>=0.23.0
+polars>=0.19.0
+python-multipart>=0.0.6
+pywebview>=5.0
