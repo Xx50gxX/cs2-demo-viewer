@@ -56,6 +56,15 @@ const App = (() => {
     );
 
     Minimap.render();
+
+    // Click on grenade marker → copy CS2 command
+    Minimap.onGrenadeClick((g) => {
+      const tick = g.tick;
+      const steamid = g.thrower_steamid;
+      const name = g.thrower;
+      copyCS2Command(tick, steamid, name);
+    });
+
     handleAutoLoad();
     console.log("[App] Init complete. Waiting for demo load...");
   }
@@ -133,14 +142,15 @@ const App = (() => {
     updatePlayerList();
     renderRoundList();
 
-    // Load first round (this will trigger rendering)
-    loadRound(1).then(() => {
-      console.log("[App] Initial round loaded, rendering complete");
-    });
-
     state.isLoaded = true;
     document.getElementById("load-status").textContent = "✅ 加载完成";
-    loadAllEvents();
+
+    // Load events first, THEN round (so weapon data is ready for tooltip)
+    loadAllEvents().then(() => {
+      loadRound(1).then(() => {
+        console.log("[App] Initial round loaded, rendering complete");
+      });
+    });
   }
 
   async function loadAllEvents() {
@@ -182,7 +192,7 @@ const App = (() => {
     showLoading(`加载第 ${roundNum} 回合...`);
 
     try {
-      const url = `/api/demo/${state.demoId}/round/${roundNum}?tick_step=4`;
+      const url = `/api/demo/${state.demoId}/round/${roundNum}?tick_step=2`;
       const data = await apiCall(url);
       console.log("[App] Round data received:", data.round_num, "|", data.ticks.length, "tick snapshots |", data.tick_start, "-", data.tick_end);
 
@@ -229,30 +239,32 @@ const App = (() => {
   }
 
   function seekToTick(tick) {
-    if (!state.roundData?.ticks) return;
+    if (!state.roundData?.ticks?.length) return;
 
     state.currentTick = tick;
     const ticks = state.roundData.ticks;
-
-    // Snap to nearest available tick (important for downsampled data)
     const step = state.roundData.tick_step || 1;
-    const targetTick = Math.round(tick / step) * step;
+    const target = Math.round(tick / step) * step;
 
     let best = ticks[0];
-    let bestDist = Math.abs(ticks[0].tick - targetTick);
+    let bestDist = Math.abs(ticks[0].tick - target);
     for (const t of ticks) {
-      const dist = Math.abs(t.tick - targetTick);
-      if (dist < bestDist) { best = t; bestDist = dist; }
+      const dist = Math.abs(t.tick - target);
+      if (dist <= bestDist) { best = t; bestDist = dist; }
     }
 
-    if (best) {
+    if (best && best !== _lastRendered) {
+      _lastRendered = best;
       Minimap.setTickData(best);
       Minimap.render();
+    }
+    if (best) {
       Timeline.setTick(best.tick);
       updateTimerDisplay();
-      updatePlayerMeta(best.tick);  // weapon + utility for tooltip
+      updatePlayerMeta(best.tick);
     }
   }
+  let _lastRendered = null;
 
   // Build per-player metadata (weapon, utility) at current tick
   function updatePlayerMeta(currentTick) {
@@ -406,18 +418,85 @@ const App = (() => {
       items.push({ type:"kill", tick:k.tick, icon:"💀", text:`${k.attacker_name||"?"} → ${k.victim_name||"?"} (${k.weapon||"?"})` });
     }
     if (showG) for (const g of (events.grenades||[])) {
-      const t = g.grenade_type || g.category || "道具";
-      items.push({ type:"grenade", tick:g.tick, icon:_grenIcon(t), text:`${g.thrower||"?"} → ${t}` });
+      // Only show detonations (not throw origins) for cleaner list
+      if (g.is_detonation) {
+        const t = g.grenade_type || g.category || "道具";
+        items.push({ type:"grenade", tick:g.tick, icon:_grenIcon(t), text:`${g.thrower||"?"} → ${t}`, grenadeData: g });
+      }
     }
 
     items.sort((a,b) => (a.tick||0)-(b.tick||0));
-    container.innerHTML = items.map(i =>
-      `<div class="event-item ${i.type}" data-tick="${i.tick}"><span class="evt-icon">${i.icon}</span><span class="evt-tick">T${i.tick}</span><span>${i.text}</span></div>`
-    ).join("");
+    container.innerHTML = items.map(i => {
+      const copyBtn = i.grenadeData
+        ? `<button class="copy-cmd-btn" data-tick="${i.tick}" data-thrower="${i.grenadeData.thrower_steamid||''}" data-thrower-name="${i.grenadeData.thrower||''}" title="复制 CS2 传送指令">📋</button>`
+        : "";
+      return `<div class="event-item ${i.type}" data-tick="${i.tick}"><span class="evt-icon">${i.icon}</span><span class="evt-tick">T${i.tick}</span><span>${i.text}</span>${copyBtn}</div>`;
+    }).join("");
 
     container.querySelectorAll(".event-item").forEach(el =>
-      el.addEventListener("click", () => { Controls.pause(); seekToTick(parseInt(el.dataset.tick)); })
+      el.addEventListener("click", (e) => {
+        // Don't seek if clicking the copy button
+        if (e.target.classList.contains("copy-cmd-btn")) return;
+        Controls.pause(); seekToTick(parseInt(el.dataset.tick));
+      })
     );
+
+    // Wire copy buttons
+    container.querySelectorAll(".copy-cmd-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const tick = parseInt(btn.dataset.tick);
+        const steamid = btn.dataset.thrower;
+        const name = btn.dataset.throwerName;
+        copyCS2Command(tick, steamid, name);
+      });
+    });
+  }
+
+  function copyCS2Command(tick, steamid, playerName) {
+    // Find thrower's position and angle at the throw tick
+    const ticks = state.roundData?.ticks;
+    if (!ticks) { alert("没有回合数据"); return; }
+
+    // Find the closest tick snapshot
+    let bestSnap = null;
+    for (const snap of ticks) {
+      if (snap.tick <= tick) bestSnap = snap;
+      else break;
+    }
+    if (!bestSnap) { alert("找不到该 tick 的数据"); return; }
+
+    // Find the thrower
+    let thrower = null;
+    for (const p of bestSnap.players) {
+      if (String(p.steamid) === String(steamid) || p.name === playerName) {
+        thrower = p;
+        break;
+      }
+    }
+    if (!thrower) { alert(`找不到选手 ${playerName} 在 tick ${tick} 的数据`); return; }
+
+    // Build CS2 console command
+    // CS2 uses: setpos x y z; setang pitch yaw
+    const x = thrower.X?.toFixed(2) || "0";
+    const y = thrower.Y?.toFixed(2) || "0";
+    const z = thrower.Z?.toFixed(2) || "0";
+    const pitch = thrower.pitch?.toFixed(4) || "0";
+    const yaw = thrower.yaw?.toFixed(4) || "0";
+
+    const cmd = `setpos ${x} ${y} ${z}; setang ${pitch} ${yaw}`;
+
+    navigator.clipboard.writeText(cmd).then(() => {
+      document.getElementById("load-status").textContent =
+        `📋 已复制 ${playerName} 的传送指令!`;
+      setTimeout(() => {
+        document.getElementById("load-status").textContent =
+          state.isLoaded ? "✅ 加载完成" : "";
+      }, 3000);
+    }).catch(() => {
+      // Fallback: show in prompt
+      prompt("复制以下指令到 CS2 控制台:", cmd);
+    });
   }
 
   function _grenIcon(t) {

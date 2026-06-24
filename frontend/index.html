@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CS2 Demo Viewer — 2D 小地图回放</title>
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=3">
 </head>
 <body>
 
@@ -36,16 +36,6 @@
       <canvas id="minimap-canvas"></canvas>
       <div id="map-overlay">
         <div id="tooltip" class="hidden"></div>
-        <div id="legend">
-          <div class="legend-title">图例</div>
-          <div class="legend-item"><span class="dot ct"></span>CT</div>
-          <div class="legend-item"><span class="dot t"></span>T</div>
-          <div class="legend-item"><span class="lg-icon">⬤</span> 💨 烟雾</div>
-          <div class="legend-item"><span class="lg-icon">✱</span> 💡 闪光</div>
-          <div class="legend-item"><span class="lg-icon">✚</span> 💣 手雷</div>
-          <div class="legend-item"><span class="lg-icon">⬤</span> 🔥 燃烧</div>
-          <div class="legend-item"><span class="kill-mark"></span> 💀 击杀</div>
-        </div>
       </div>
     </div>
   </section>
@@ -81,9 +71,13 @@
 <footer id="controls-bar">
   <div id="playback-controls">
     <button id="btn-prev-round" title="上一回合">⏮</button>
-    <button id="btn-step-back" title="后退 64 ticks">◀◀</button>
+    <button id="btn-step-back-10" title="后退 10 秒">◀10s</button>
+    <button id="btn-step-back-5"  title="后退 5 秒">◀5s</button>
+    <button id="btn-step-back"    title="后退 1 秒">◀1s</button>
     <button id="btn-play" title="播放/暂停">▶</button>
-    <button id="btn-step-fwd" title="前进 64 ticks">▶▶</button>
+    <button id="btn-step-fwd"    title="前进 1 秒">1s▶</button>
+    <button id="btn-step-fwd-5"  title="前进 5 秒">5s▶</button>
+    <button id="btn-step-fwd-10" title="前进 10 秒">10s▶</button>
     <button id="btn-next-round" title="下一回合">⏭</button>
     <div id="speed-control">
       <label>速度:</label>
@@ -114,10 +108,10 @@
 </footer>
 
 <!-- ── Scripts ──────────────────────────────────────────────────── -->
-<script src="js/minimap.js"></script>
-<script src="js/timeline.js"></script>
-<script src="js/controls.js"></script>
-<script src="js/app.js"></script>
+<script src="js/minimap.js?v=3"></script>
+<script src="js/timeline.js?v=3"></script>
+<script src="js/controls.js?v=3"></script>
+<script src="js/app.js?v=3"></script>
 
 </body>
 </html>

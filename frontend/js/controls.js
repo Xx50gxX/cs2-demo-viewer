@@ -18,8 +18,13 @@ const Controls = (() => {
 
   function init() {
     document.getElementById("btn-play").addEventListener("click", togglePlay);
-    document.getElementById("btn-step-back").addEventListener("click", () => step(-32));
-    document.getElementById("btn-step-fwd").addEventListener("click", () => step(32));
+    // 64 ticks/sec → 1s=64, 5s=320, 10s=640
+    document.getElementById("btn-step-back-10").addEventListener("click", () => step(-640));
+    document.getElementById("btn-step-back-5").addEventListener("click",  () => step(-320));
+    document.getElementById("btn-step-back").addEventListener("click",    () => step(-64));
+    document.getElementById("btn-step-fwd").addEventListener("click",     () => step(64));
+    document.getElementById("btn-step-fwd-5").addEventListener("click",   () => step(320));
+    document.getElementById("btn-step-fwd-10").addEventListener("click",  () => step(640));
     document.getElementById("btn-prev-round").addEventListener("click", () => prevRound());
     document.getElementById("btn-next-round").addEventListener("click", () => nextRound());
     document.getElementById("speed-select").addEventListener("change", onSpeedChange);
@@ -41,6 +46,7 @@ const Controls = (() => {
     if (btn) { btn.textContent = "⏸"; btn.classList.add("active"); }
     lastFrameTime = performance.now();
     _tickAccum = 0;
+    _lastAdvanceTime = performance.now();
     _tick();
   }
 
@@ -56,21 +62,25 @@ const Controls = (() => {
 
   // Fractional tick accumulator for smooth playback
   let _tickAccum = 0;
+  let _lastAdvanceTime = 0;
 
   function _tick() {
     if (!isPlaying) return;
 
     const now = performance.now();
-    const elapsed = Math.min(now - lastFrameTime, 100); // cap at 100ms (tab switch)
+    const elapsed = Math.min(now - lastFrameTime, 100);
     lastFrameTime = now;
 
     // CS2 demos are 64 ticks/sec → 15.625 ms per tick at 1x
     _tickAccum += (elapsed / 15.625) * speed;
 
-    const wholeTicks = Math.floor(_tickAccum);
+    // Failsafe: force at least 1 tick every 250ms to prevent freeze
+    const forceTick = _tickAccum > 0 && _tickAccum < 1 && (now - _lastAdvanceTime) > 250;
+    const wholeTicks = forceTick ? 1 : Math.floor(_tickAccum);
     _tickAccum -= wholeTicks;
 
     if (wholeTicks > 0 && onTickCallback) {
+      _lastAdvanceTime = now;
       onTickCallback(wholeTicks);
     }
 
@@ -108,11 +118,11 @@ const Controls = (() => {
         break;
       case "ArrowLeft":
         e.preventDefault();
-        step(-64);
+        step(e.shiftKey ? -320 : e.ctrlKey || e.metaKey ? -640 : -64);
         break;
       case "ArrowRight":
         e.preventDefault();
-        step(64);
+        step(e.shiftKey ? 320 : e.ctrlKey || e.metaKey ? 640 : 64);
         break;
       case "ArrowUp":
         e.preventDefault();

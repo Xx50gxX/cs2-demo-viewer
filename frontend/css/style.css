@@ -9,8 +9,8 @@
   --text-muted: #8899aa;
   --accent: #e94560;
   --accent2: #0f9b8e;
-  --ct-color: #4a9eff;
-  --t-color: #f0a040;
+  --ct-color: #3b8eff;
+  --t-color: #e6c830;
   --border: #2a3a5e;
   --radius: 6px;
 }
@@ -208,6 +208,14 @@ body {
   transition: background 0.1s;
 }
 .event-item:hover { background: rgba(255,255,255,0.05); }
+.copy-cmd-btn {
+  margin-left: auto; padding: 1px 5px; font-size: 12px;
+  background: none; border: 1px solid var(--border); border-radius: 3px;
+  color: var(--text-muted); cursor: pointer; opacity: 0;
+  transition: opacity 0.15s;
+}
+.event-item:hover .copy-cmd-btn { opacity: 1; }
+.copy-cmd-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 .event-item .evt-tick { color: var(--text-muted); min-width: 50px; }
 .event-item .evt-icon { font-size: 12px; }
 .event-item.kill { border-left: 2px solid #f44; }
@@ -236,8 +244,8 @@ body {
 }
 .player-row .p-name { font-weight: 500; }
 .player-row .p-side { font-size: 10px; padding: 1px 5px; border-radius: 3px; }
-.player-row .p-side.CT { background: rgba(74,158,255,0.2); color: var(--ct-color); }
-.player-row .p-side.T { background: rgba(240,160,64,0.2); color: var(--t-color); }
+.player-row .p-side.CT { background: rgba(59,142,255,0.2); color: var(--ct-color); }
+.player-row .p-side.T { background: rgba(230,200,48,0.2); color: var(--t-color); }
 
 /* ── Bottom Controls ──────────────────────────────────────────── */
 #controls-bar {

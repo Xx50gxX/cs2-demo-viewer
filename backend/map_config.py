@@ -1,78 +1,58 @@
 """
 CS2 Map Radar Configuration
 
-Each map entry defines the coordinate transformation parameters
-to convert in-game world coordinates (X, Y) to radar image pixel coordinates.
-
-The radar image is typically 1024x1024 pixels.
-Conversion formulas:
-  pixel_x = (world_y - pos_y) / -scale
-  pixel_y = (world_x - pos_x) / -scale
-
-Reference: CS2 overview files (.txt in VPK packages) and awpy built-in map data.
+Coordinate values from awpy official map-data.json (extracted from CS2 game files).
+These are verified to produce correct player positioning on the map images.
 """
 
-from typing import Dict, TypedDict
+from typing import TypedDict
 
 
 class MapConfig(TypedDict):
     name: str
-    radar_file: str
-    pos_x: float       # World X at left edge of radar image
-    pos_y: float       # World Y at top edge of radar image
-    scale: float        # World units per pixel (at 1024px reference)
-    radar_size: int     # Radar image dimensions (square)
-    # For multi-level maps (de_nuke), vertical sections
+    radar_file: str      # awpy map image filename (1024x1024 PNG)
+    pos_x: float
+    pos_y: float
+    scale: float
+    radar_size: int
     vertical_sections: list | None
 
 
-# Map configurations extracted from CS2 game overview files
-# pos_x, pos_y, scale values define world→image coordinate mapping
-MAP_CONFIGS: Dict[str, MapConfig] = {
-    # Calibrated from actual CS2 demo data (player movement bounds)
+# Verified values from awpy map-data.json (CS2 game overview files)
+MAP_CONFIGS = {
     "de_mirage": {
         "name": "Mirage",
-        "radar_file": "de_mirage_radar.png",
-        "pos_x": -3236.0,
-        "pos_y": 3230.0,
-        "scale": 5.1,
+        "radar_file": "de_mirage.png",
+        "pos_x": -3230.0,
+        "pos_y": 1713.0,
+        "scale": 5.0,
         "radar_size": 1024,
         "vertical_sections": None,
     },
     "de_inferno": {
         "name": "Inferno",
-        "radar_file": "de_inferno_radar.png",
-        "pos_x": -2240.0,
-        "pos_y": 4168.0,
-        "scale": 5.5,
+        "radar_file": "de_inferno.png",
+        "pos_x": -2087.0,
+        "pos_y": 3870.0,
+        "scale": 4.9,
         "radar_size": 1024,
         "vertical_sections": None,
     },
-    "de_anubis": {
-        "name": "Anubis",
-        "radar_file": "de_anubis_radar.png",
-        "pos_x": -2800.0,
-        "pos_y": 3072.0,
-        "scale": 5.2,
-        "radar_size": 1024,
-        "vertical_sections": None,
-    },
-    # Estimated (no demo data available yet — calibrate when data is available)
     "de_dust2": {
         "name": "Dust II",
-        "radar_file": "de_dust2_radar.png",
-        "pos_x": -2556.0,
-        "pos_y": 2912.0,
-        "scale": 4.6,
+        "radar_file": "de_dust2.png",
+        "pos_x": -2476.0,
+        "pos_y": 3239.0,
+        "scale": 4.4,
         "radar_size": 1024,
         "vertical_sections": None,
     },
     "de_nuke": {
         "name": "Nuke",
-        "radar_file": "de_nuke_radar.png",
-        "pos_x": -3456.0,
-        "pos_y": 2880.0,
-        "scale": 5.5,
+        "radar_file": "de_nuke.png",
+        "pos_x": -3453.0,
+        "pos_y": 2887.0,
+        "scale": 7.0,
         "radar_size": 1024,
         "vertical_sections": [
             {"name": "lower", "altitude_min": -10000, "altitude_max": -495},
@@ -81,27 +61,36 @@ MAP_CONFIGS: Dict[str, MapConfig] = {
     },
     "de_ancient": {
         "name": "Ancient",
-        "radar_file": "de_ancient_radar.png",
-        "pos_x": -3000.0,
-        "pos_y": 2890.0,
-        "scale": 5.2,
+        "radar_file": "de_ancient.png",
+        "pos_x": -2953.0,
+        "pos_y": 2164.0,
+        "scale": 5.0,
+        "radar_size": 1024,
+        "vertical_sections": None,
+    },
+    "de_anubis": {
+        "name": "Anubis",
+        "radar_file": "de_anubis.png",
+        "pos_x": -2796.0,
+        "pos_y": 3328.0,
+        "scale": 5.22,
         "radar_size": 1024,
         "vertical_sections": None,
     },
     "de_overpass": {
         "name": "Overpass",
-        "radar_file": "de_overpass_radar.png",
-        "pos_x": -3840.0,
-        "pos_y": 3520.0,
-        "scale": 6.0,
+        "radar_file": "de_overpass.png",
+        "pos_x": -4831.0,
+        "pos_y": 1781.0,
+        "scale": 5.2,
         "radar_size": 1024,
         "vertical_sections": None,
     },
     "de_vertigo": {
         "name": "Vertigo",
-        "radar_file": "de_vertigo_radar.png",
-        "pos_x": -2240.0,
-        "pos_y": 1600.0,
+        "radar_file": "de_vertigo.png",
+        "pos_x": -3168.0,
+        "pos_y": 1762.0,
         "scale": 4.0,
         "radar_size": 1024,
         "vertical_sections": [
@@ -115,30 +104,22 @@ MAP_CONFIGS: Dict[str, MapConfig] = {
 def world_to_pixel(world_x: float, world_y: float, config: MapConfig) -> tuple[float, float]:
     """
     Convert CS2 world coordinates to radar image pixel coordinates.
-
-    CS2 overview file convention:
-      - pos_x, pos_y = world coords at TOP-LEFT of the radar image
-      - scale = world units per pixel
-      - Image Y increases downward, world Y increases northward
-      → pixel_x = (world_x - pos_x) / scale
-      → pixel_y = (pos_y - world_y) / scale
+    Uses the same formula as awpy.plot.utils.game_to_pixel_axis().
 
     Args:
-        world_x: In-game X coordinate (east/west)
-        world_y: In-game Y coordinate (north/south)
-        config: Map configuration with pos_x, pos_y, scale
+        world_x: In-game X coordinate
+        world_y: In-game Y coordinate
+        config: Map configuration
 
     Returns:
-        (pixel_x, pixel_y) tuple — position on the radar image
+        (pixel_x, pixel_y) — position on the 1024x1024 radar image
     """
     pixel_x = (world_x - config["pos_x"]) / config["scale"]
     pixel_y = (config["pos_y"] - world_y) / config["scale"]
 
-    # Clamp to image bounds
     size = config["radar_size"]
     pixel_x = max(0, min(size, pixel_x))
     pixel_y = max(0, min(size, pixel_y))
-
     return pixel_x, pixel_y
 
 

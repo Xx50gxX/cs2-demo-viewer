@@ -48,10 +48,10 @@ class DemoParser:
         header = self._demo.parse_header()
         self._map_name = str(header.get("map_name", "unknown"))
 
-        # Full parse — this is the heavy operation
+        # Full parse — request pitch/yaw for grenade practice feature
         import time
         t0 = time.time()
-        self._demo.parse()
+        self._demo.parse(player_props=["pitch", "yaw"])
         elapsed = time.time() - t0
         print(f"[parser] Parsed {self.demo_path.name} in {elapsed:.1f}s")
 
@@ -142,6 +142,7 @@ class DemoParser:
             "grenades": [],
             "bomb_events": [],
             "weapon_fires": [],
+            "item_pickups": [],
         }
 
         # Kills — from player_death events
@@ -180,38 +181,42 @@ class DemoParser:
                     "hitgroup": row.get("hitgroup"),
                 }))
 
-        # Grenade throw origins — sample the first tick of each grenade entity
-        # dem.grenades has 2M+ rows (every projectile tick); we only need throw origins.
+        # Grenade trajectory + origins — sample trajectory points for animated flight paths
         if gn is not None and gn.height > 0:
-            # Get first occurrence (lowest tick) per entity_id
-            throw_origins = (
-                gn.group_by("entity_id")
-                .agg([
-                    pl.col("tick").min().alias("tick"),
-                    pl.col("thrower").first(),
-                    pl.col("thrower_steamid").first(),
-                    pl.col("grenade_type").first(),
-                    pl.col("X").first(),
-                    pl.col("Y").first(),
-                    pl.col("Z").first(),
-                    pl.col("round_num").first(),
-                ])
-            )
-            for row in throw_origins.to_dicts():
+            # Get throw origin + trajectory samples per entity
+            # Sample every 8 ticks for smooth animation without bloat
+            TRAJECTORY_STEP = 8
+
+            # Get per-entity trajectory points
+            entities = gn.sort(["entity_id", "tick"])
+            last_eid = None
+            last_tick = None
+            for row in entities.to_dicts():
+                eid = row.get("entity_id")
+                tick = row.get("tick")
                 gtype = str(row.get("grenade_type", ""))
-                events["grenades"].append(self._serialize_row({
-                    "tick": row.get("tick"),
-                    "thrower": row.get("thrower"),
-                    "thrower_steamid": row.get("thrower_steamid"),
-                    "grenade_type": gtype,
-                    "X": row.get("X"),
-                    "Y": row.get("Y"),
-                    "Z": row.get("Z"),
-                    "entity_id": row.get("entity_id"),
-                    "round_num": row.get("round_num"),
-                    "category": _categorize_grenade(gtype),
-                    "is_throw_origin": True,
-                }))
+
+                # Always include first tick (throw origin) and then every Nth tick
+                is_first = eid != last_eid
+                is_sample = is_first or (tick - (last_tick or tick)) >= TRAJECTORY_STEP
+
+                if is_sample or last_eid != eid:
+                    last_eid = eid
+                    events["grenades"].append(self._serialize_row({
+                        "tick": tick,
+                        "thrower": row.get("thrower"),
+                        "thrower_steamid": row.get("thrower_steamid"),
+                        "grenade_type": gtype,
+                        "X": row.get("X"),
+                        "Y": row.get("Y"),
+                        "Z": row.get("Z"),
+                        "entity_id": eid,
+                        "round_num": row.get("round_num"),
+                        "category": _categorize_grenade(gtype),
+                        "is_throw_origin": is_first,
+                        "is_trajectory": not is_first,
+                    }))
+                    last_tick = tick
 
         # Smoke detonation events (more precise positions)
         if "smokegrenade_detonate" in ev:
@@ -288,27 +293,37 @@ class DemoParser:
                         "site": row.get("site"),
                     }))
 
-        # Weapon fires — track which weapon each player used at each tick
+        # Weapon fires — include all shots for tracer rendering + weapon tracking
         if "weapon_fire" in ev:
-            # Downsample: only keep first and last weapon fire per player per round
-            # to track weapon switches without storing every shot
             wf = ev["weapon_fire"]
-            # Group by (user_steamid, weapon) to get switch ticks
-            wf_sorted = wf.sort(["user_steamid", "tick"])
             prev_weapon = {}
-            for row in wf_sorted.to_dicts():
+            for row in wf.sort(["user_steamid", "tick"]).to_dicts():
                 sid = row.get("user_steamid")
                 weapon = row.get("weapon", "")
                 tick = row.get("tick")
-                # Only record when weapon changes or first occurrence
+                events["weapon_fires"].append(self._serialize_row({
+                    "tick": tick,
+                    "player": row.get("user_name"),
+                    "steamid": sid,
+                    "weapon": weapon,
+                    "X": row.get("user_X"),
+                    "Y": row.get("user_Y"),
+                    "side": row.get("user_side"),
+                }))
+                # Also track weapon changes for the tooltip
                 if sid not in prev_weapon or prev_weapon[sid] != weapon:
                     prev_weapon[sid] = weapon
-                    events["weapon_fires"].append(self._serialize_row({
-                        "tick": tick,
-                        "player": row.get("user_name"),
-                        "steamid": sid,
-                        "weapon": weapon,
-                    }))
+
+        # Item pickups — for inventory tracking (weapons, armor, defuser, grenades)
+        if "item_pickup" in ev:
+            for row in ev["item_pickup"].to_dicts():
+                events["item_pickups"].append(self._serialize_row({
+                    "tick": row.get("tick"),
+                    "player": row.get("user_name"),
+                    "steamid": row.get("user_steamid"),
+                    "item": row.get("item"),
+                    "side": row.get("user_side"),
+                }))
 
         self._cache["events"] = events
         return events
@@ -340,7 +355,7 @@ class DemoParser:
             return {"round_num": round_num, "ticks": [], "events": {"kills": [], "grenades": []}}
 
         # Select rendering columns (pitch/yaw not available by default, skip for now)
-        needed_cols = ["tick", "steamid", "name", "side", "X", "Y", "Z", "health"]
+        needed_cols = ["tick", "steamid", "name", "side", "X", "Y", "Z", "health", "pitch", "yaw"]
         available = [c for c in needed_cols if c in r_ticks.columns]
         r_ticks = r_ticks.select(available)
 
@@ -370,6 +385,10 @@ class DemoParser:
                       if (sorted_ticks and sorted_ticks[0]["tick"] <= (e.get("tick") or 0) <= sorted_ticks[-1]["tick"])],
             "grenades": [e for e in all_events["grenades"]
                          if (sorted_ticks and sorted_ticks[0]["tick"] <= (e.get("tick") or 0) <= sorted_ticks[-1]["tick"])],
+            "weapon_fires": [e for e in all_events.get("weapon_fires", [])
+                             if (sorted_ticks and sorted_ticks[0]["tick"] <= (e.get("tick") or 0) <= sorted_ticks[-1]["tick"])],
+            "item_pickups": [e for e in all_events.get("item_pickups", [])
+                             if (sorted_ticks and sorted_ticks[0]["tick"] <= (e.get("tick") or 0) <= sorted_ticks[-1]["tick"])],
         }
 
         # Get round timing from rounds DataFrame (freeze_end → gameplay start)
@@ -406,7 +425,7 @@ class DemoParser:
         assert self._demo is not None
         r_ticks = self._demo.ticks.filter(pl.col("tick") == tick_num)
 
-        cols = ["tick", "steamid", "name", "side", "X", "Y", "Z", "health"]
+        cols = ["tick", "steamid", "name", "side", "X", "Y", "Z", "health", "pitch", "yaw"]
         available = [c for c in cols if c in r_ticks.columns]
 
         players = [self._serialize_row(r) for r in r_ticks.select(available).to_dicts()]
